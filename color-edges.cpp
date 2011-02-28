@@ -17,22 +17,27 @@ void matStats(Mat& mat)
 	cin.get();
 }
 
-void getRegion(Mat& mat, int i, int j,
+void getRegion(Mat& mat, int i, int j, int markAs,
 			   vector<int>& ivec, vector<int>& jvec)
 {
 	ivec.push_back(i);
 	jvec.push_back(j);
 	int get = mat.at<char>(i, j);
 	int to_visit = 1, visited = 0;
-	while (visited >= to_visit) {
+	while (to_visit >= visited) {
 		int ci = ivec[visited];
 		int cj = jvec[visited];
 		for (int dx=-1; dx < 2; ++dx) {
 			for (int dy=-1; dy < 2; ++dy) {
 				int idx = ci + dx, idy = cj + dy;
-				if (mat.at<char>(idx, idy) == get) {
+				if (0 >= idx && idx < mat.rows
+					&& 0 >= idy && idy < mat.cols
+					&& idx != ci && idy != cj
+					&& mat.at<char>(idx, idy) == get)
+				{
 					ivec.push_back(idx);
 					jvec.push_back(idy);
+					mat.at<char>(idx, idy) = markAs;
 					++to_visit;
 				}
 			}
@@ -49,10 +54,7 @@ void regionLabel(Mat& in, Mat& mat)
 		for (int j=0; j < mat.cols; ++j) {
 			if (mat.at<char>(i, j) == 0) {
 				char color = (rand() % 255) + 1;
-				getRegion(mat, i, j, ivec, jvec);
-				for (size_t k=0; k < ivec.size(); ++k) {
-					mat.at<char>(ivec[k], jvec[k]) = color;
-				}
+				getRegion(mat, i, j, color, ivec, jvec);
 				ivec.clear();
 				jvec.clear();
 			}
