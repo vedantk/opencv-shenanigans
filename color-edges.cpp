@@ -2,6 +2,7 @@
 #include <highgui.h>
 using namespace cv;
 
+#include <cstdlib>
 #include <iostream>
 using namespace std;
 
@@ -14,6 +15,49 @@ void matStats(Mat& mat)
 		<< "mat.elemSize() = " << mat.elemSize()
 		<< endl;
 	cin.get();
+}
+
+void getRegion(Mat& mat, int i, int j,
+			   vector<int>& ivec, vector<int>& jvec)
+{
+	ivec.push_back(i);
+	jvec.push_back(j);
+	int get = mat.at<char>(i, j);
+	int to_visit = 1, visited = 0;
+	while (visited >= to_visit) {
+		int ci = ivec[visited];
+		int cj = jvec[visited];
+		for (int dx=-1; dx < 2; ++dx) {
+			for (int dy=-1; dy < 2; ++dy) {
+				int idx = ci + dx, idy = cj + dy;
+				if (mat.at<char>(idx, idy) == get) {
+					ivec.push_back(idx);
+					jvec.push_back(idy);
+					++to_visit;
+				}
+			}
+		}
+		++visited;
+	}
+}
+
+void regionLabel(Mat& in, Mat& mat)
+{
+	mat = in.clone();
+	vector<int> ivec, jvec;
+	for (int i=0; i < mat.rows; ++i) {
+		for (int j=0; j < mat.cols; ++j) {
+			if (mat.at<char>(i, j) == 0) {
+				char color = (rand() % 255) + 1;
+				getRegion(mat, i, j, ivec, jvec);
+				for (size_t k=0; k < ivec.size(); ++k) {
+					mat.at<char>(ivec[k], jvec[k]) = color;
+				}
+				ivec.clear();
+				jvec.clear();
+			}
+		}
+	}
 }
 
 void colorize(Mat& mat, Mat& out)
@@ -34,16 +78,17 @@ void colorize(Mat& mat, Mat& out)
 
 int main(int argc, char** argv)
 {
+	srand(time(NULL));
 	VideoCapture cap(0);
 	if(!cap.isOpened()) {
 		puts("Couldn't open camera.");
         return -1;
 	}
 
-	Mat frame, gray, edges, colorized;
+	Mat frame, gray, edges, colorized, regions;
 	const char* windows[] = {
 		"Color Input", "Smoothed Grayscale", "Edge Detection",
-		"Colorized Edges"
+		"Colorized Edges", "Regions", "Colorized Regions"
 	};
 	for (size_t i=0; i < sizeof(windows)/sizeof(char*); ++i) {
 		namedWindow(windows[i], 1);
@@ -62,6 +107,12 @@ int main(int argc, char** argv)
 
 		colorize(edges, colorized);
 		imshow(windows[3], colorized);
+
+		regionLabel(edges, regions);
+		imshow(windows[4], regions);
+
+		colorize(regions, regions);
+		imshow(windows[5], regions);
 
 		if (waitKey(10) >= 0) break;
 	}
