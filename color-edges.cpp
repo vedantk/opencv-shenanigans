@@ -95,9 +95,9 @@ int main(int argc, char** argv)
 {
 	srand(time(NULL));
 	VideoCapture cap(0);
-	if(!cap.isOpened()) {
+	if (!cap.isOpened()) {
 		puts("Couldn't open camera.");
-        return -1;
+		return -1;
 	}
 
 	const char* windows[] = {
