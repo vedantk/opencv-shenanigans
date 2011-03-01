@@ -83,7 +83,7 @@ void colorize(Mat& mat, Mat& out)
 	}
 	for (int i=0; i < mat.rows; ++i) {
 		for (int j=0; j < mat.cols; ++j) {
-			planes[0].at<u8>(i, j) |= 0xFF; // (i * j) % 256;
+			planes[0].at<u8>(i, j) = (i * j) % 256;
 			planes[1].at<u8>(i, j) ^= 0xFF;
 			planes[2].at<u8>(i, j) = 0xFF - mat.at<u8>(i, j);
 		}
@@ -100,35 +100,28 @@ int main(int argc, char** argv)
         return -1;
 	}
 
-	Mat frame, gray, edges, colorized, regions;
 	const char* windows[] = {
-		"Color Input", "Smoothed Grayscale", "Edge Detection",
-		"Colorized Edges", "Regions", "Colorized Regions"
+		"Color Input", "Smoothed Grayscale",
+		"Edge Detection", "Regions", "Colorized Regions"
 	};
 	for (size_t i=0; i < sizeof(windows)/sizeof(char*); ++i) {
 		namedWindow(windows[i], 1);
 	}
 
+	Mat frame, gray, edges, regions, colorized;
 	while (true) {
 		cap >> frame;
-		imshow(windows[0], frame); // color
-
 		cvtColor(frame, gray, CV_BGR2GRAY);
-		GaussianBlur(gray, gray, Size(7, 7), 3, 3);
-		imshow(windows[1], gray); // gray
-
+		GaussianBlur(gray, gray, Size(3, 3), 2, 2);
 		Canny(gray, edges, 0, 30, 3, true);
-		imshow(windows[2], edges); // edges
-
-		colorize(edges, colorized);
-		imshow(windows[3], colorized); // color edges
-
 		regionLabel(edges, regions);
-		imshow(windows[4], regions); // regions
+		colorize(regions, colorized);
 
-		colorize(regions, regions);
-		imshow(windows[5], regions); // color regions
-
+		imshow(windows[0], frame);
+		imshow(windows[1], gray);
+		imshow(windows[2], edges);
+		imshow(windows[3], regions);
+		imshow(windows[4], colorized);
 		if (waitKey(10) >= 0) break;
 	}
 
