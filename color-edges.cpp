@@ -22,21 +22,6 @@ void matInfo(Mat& mat)
 	cin.get();
 }
 
-void findEdges(Mat& gray, Mat& out)
-{
-	int hist[0xFF] = {0};
-	int size = gray.rows * gray.cols;
-	for (int i=0; i < size; ++i) {
-		hist[gray.data[i]] += 1;
-	}
-	int max = 0, min=0;
-	for (int i=1; i < 0xFF; ++i) {
-		max = (hist[i] > hist[max]) ? i : max;
-		min = (hist[i] < hist[min]) ? i : min;
-	}
-	Canny(gray, out, min, max, 3, true);
-}
-
 void colorize(Mat& mat, Mat& out)
 {
 	vector<Mat> planes;
@@ -135,16 +120,53 @@ inline bool isBorderPixel(Mat& mat, Vec2i posn)
 	return state.isBorder;
 }
 
-Vec2i findCenter(Mat& mat, points posns)
+struct centroidState {
+	points& border;
+	points orderedSet;
+	u8 flag;
+
+	centroidState(points& boundary)
+		: border(boundary)
+	{
+		flag = border[0]
+	}
+
+	bool apply(Mat& mat, int idx, int idy)
+	{
+
+
+Vec2i findCentroid(Mat& mat, points posns)
+/* http://en.wikipedia.org/wiki/Centroid#Centroid_of_polygon */
 {
 	points border;
+	Mat boundaryMap = Mat(mat.rows, mat.cols, mat.type);
+	centroidState state = centroidState(border);
 	for (size_t i=0; i < posns.size(); ++i) {
 		if (isBorderPixel(mat, posns[i])) {
 			border.push_back(posns[i]);
+			boundaryMap.at<u8>(posns[i][0], posns[i][1]) = 1;
 		}
 	}
+	/* order the boundary!
+	 * -- pick a point on boundary, find first neighbor, set orig
+	 * point to NULL/seen/visited, recurse on neighbor, stop when
+	 * no neighbors are on boundary */
 
-	return Vec2i(0, 0);
+	int sumArea = 0, sumX = 0, sumY = 0;
+	for (size_t i=0; i < border.size() - 1; ++i) {
+		int xi = border[i][0];
+		int xii = border[i + 1][0];
+		int yi = border[i][1];
+		int yii = border[i + 1][1];
+		int cnpart = (xi * yii) - (xii * yi);
+		sumX += (xi + xii) * cnpart;
+		sumY += (yi + yii) * cnpart;
+		sumArea += cnpart;
+	}
+	double reduction = 1 / (3.0 * (sumArea + pow(10, -10)));
+	int cx = int(round(reduction * sumX));
+	int cy = int(round(reduction * sumY));
+	return Vec2i(cx, cy);
 }
 
 int randRange(int a, int b)
@@ -158,6 +180,7 @@ bool shadeFilter(u8 shade)
 }
 
 void regionLabel(Mat& edges, Mat& regions)
+/* Randomly color edge-separated regions. */
 {
 	points posns;
 	regions = edges.clone();
@@ -167,6 +190,9 @@ void regionLabel(Mat& edges, Mat& regions)
 				posns.push_back(Vec2i(i, j));
 				u8 color = randRange(128, 192);
 				getRegion(regions, color, shadeFilter, posns);
+				//Vec2i pt = findCentroid(regions, posns);
+				//cout << "Region: " << pt[0] << " " << pt[1] << endl;
+				//cin.get();
 				posns.clear();
 			}
 		}
@@ -193,7 +219,7 @@ int main(int argc, char** argv)
 		cap >> frame;
 		cvtColor(frame, gray, CV_BGR2GRAY);
 		GaussianBlur(gray, gray, Size(3, 3), 5, 5);
-		findEdges(gray, edges);
+		Canny(gray, edges, 0, 50, 3, true);
 		regionLabel(edges, regions);
 		colorize(gray, colorized);
 
@@ -203,6 +229,5 @@ int main(int argc, char** argv)
 		imshow(windows[3], colorized);
 		if (waitKey(10) >= 0) break;
 	}
-
 	return 0;
 }
