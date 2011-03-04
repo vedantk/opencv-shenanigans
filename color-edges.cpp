@@ -1,61 +1,4 @@
-#include <cv.h>
-#include <highgui.h>
-using namespace cv;
-
-#include <cmath>
-#include <cstdlib>
-#include <iostream>
-using namespace std;
-
-typedef unsigned char u8;
-typedef vector<Vec2i> points;
-typedef bool (*Filter)(u8 shade);
-
-void matInfo(Mat& mat)
-{
-	cout
-		<< "mat.depth() = " << mat.depth() << endl
-		<< "mat.channels() = " << mat.channels() << endl
-		<< "mat.dims = " << mat.dims << endl
-		<< "mat.elemSize() = " << mat.elemSize()
-		<< endl;
-	cin.get();
-}
-
-void colorize(Mat& mat, Mat& out)
-{
-	vector<Mat> planes;
-	for (int k=0; k < 3; ++k) {
-		planes.push_back(mat.clone());
-	}
-	for (int i=0; i < mat.rows; ++i) {
-		for (int j=0; j < mat.cols; ++j) {
-			u8 cur = mat.at<u8>(i, j);
-			planes[0].at<u8>(i, j) = 0xFF - cur;
-			planes[1].at<u8>(i, j) = (cur * cur) % 0xFF;
-		}
-	}
-	merge(planes, out);
-}
-
-template<typename State>
-void applyToNeighbors(Mat& mat, State* data, int ci, int cj)
-/* Call data->apply on all of the neighbors of the point (ci, cj).
- * If the function evaluates to false, the loop is broken. */
-{
-	for (int dx=-1; dx < 2; ++dx) {
-		for (int dy=-1; dy < 2; ++dy) {
-			int idx = ci + dx, idy = cj + dy;
-			if (idx >= 0 && idx < mat.rows
-				&& idy >= 0 && idy < mat.cols
-				&& idx != ci && idy != cj)
-			{
-				if (!data->apply(mat, idx, idy))
-					return;
-			}
-		}
-	}
-}
+#include "cv-common.hpp"
 
 struct regionState {
 	int to_visit;
@@ -80,7 +23,7 @@ struct regionState {
 	}
 };
 
-void getRegion(Mat& mat, u8 markAs, Filter filt, points& posns)
+void findRegion(Mat& mat, u8 markAs, Filter filt, points& posns)
 /* Given points in posns, find their surrounding homogenous region.
  * The filter checks if new points should be included in the region. */
 {
@@ -120,58 +63,34 @@ inline bool isBorderPixel(Mat& mat, Vec2i posn)
 	return state.isBorder;
 }
 
-struct centroidState {
-	points& border;
-	points orderedSet;
-	u8 flag;
-
-	centroidState(points& boundary)
-		: border(boundary)
-	{
-		flag = border[0]
-	}
-
-	bool apply(Mat& mat, int idx, int idy)
-	{
-
-
-Vec2i findCentroid(Mat& mat, points posns)
-/* http://en.wikipedia.org/wiki/Centroid#Centroid_of_polygon */
+void findBorder(Mat& mat, points& posns, points& border)
 {
-	points border;
-	Mat boundaryMap = Mat(mat.rows, mat.cols, mat.type);
-	centroidState state = centroidState(border);
-	for (size_t i=0; i < posns.size(); ++i) {
-		if (isBorderPixel(mat, posns[i])) {
-			border.push_back(posns[i]);
-			boundaryMap.at<u8>(posns[i][0], posns[i][1]) = 1;
+	for (size_t k=0; k < posns.size(); ++k) {
+		if (isBorderPixel(mat, posns[k])) {
+			border.push_back(posns[k]);
 		}
 	}
-	/* order the boundary!
-	 * -- pick a point on boundary, find first neighbor, set orig
-	 * point to NULL/seen/visited, recurse on neighbor, stop when
-	 * no neighbors are on boundary */
-
-	int sumArea = 0, sumX = 0, sumY = 0;
-	for (size_t i=0; i < border.size() - 1; ++i) {
-		int xi = border[i][0];
-		int xii = border[i + 1][0];
-		int yi = border[i][1];
-		int yii = border[i + 1][1];
-		int cnpart = (xi * yii) - (xii * yi);
-		sumX += (xi + xii) * cnpart;
-		sumY += (yi + yii) * cnpart;
-		sumArea += cnpart;
-	}
-	double reduction = 1 / (3.0 * (sumArea + pow(10, -10)));
-	int cx = int(round(reduction * sumX));
-	int cy = int(round(reduction * sumY));
-	return Vec2i(cx, cy);
 }
 
-int randRange(int a, int b)
+Point2i findCentroid(Mat& mat, points& posns)
+/* http://mathworld.wolfram.com/GeometricCentroid.html */
 {
-	return a + (abs(rand()) % (b - a));
+	int xsum = 0, ysum = 0;
+	for (size_t k=0; k < posns.size(); ++k) {
+		xsum += posns[k][0];
+		ysum += posns[k][1];
+	}
+	return Point2i(xsum / posns.size(), ysum / posns.size());
+}
+
+int findRadius(Point2i centroid, points& posns)
+{
+	double sumRadius = 0;
+	int cx = centroid.x, cy = centroid.y;
+	for (size_t k=0; k < posns.size(); ++k) {
+		sumRadius += dist(cx, posns[k][0], cy, posns[k][1]);
+	}
+	return int(round(sumRadius / posns.size()));
 }
 
 bool shadeFilter(u8 shade)
@@ -184,19 +103,20 @@ void regionLabel(Mat& edges, Mat& regions)
 {
 	points posns;
 	regions = edges.clone();
-	for (int i=0; i < regions.rows; ++i) {
-		for (int j=0; j < regions.cols; ++j) {
-			if (shadeFilter(regions.at<u8>(i, j))) {
-				posns.push_back(Vec2i(i, j));
-				u8 color = randRange(128, 192);
-				getRegion(regions, color, shadeFilter, posns);
-				//Vec2i pt = findCentroid(regions, posns);
-				//cout << "Region: " << pt[0] << " " << pt[1] << endl;
-				//cin.get();
-				posns.clear();
+	Scalar outline = Scalar(0, 0, 0, 0);
+	FOR_EACH_PIXEL(regions, i, j, {
+		if (shadeFilter(regions.at<u8>(i, j))) {
+			posns.push_back(Vec2i(i, j));
+			int color = randRange(160, 192);
+			findRegion(regions, color, shadeFilter, posns);
+			if (posns.size() > 50 && posns.size() < 100) {
+				Point2i centroid = findCentroid(regions, posns);
+				int radius = findRadius(centroid, posns);
+				circle(regions, centroid, radius, outline);
 			}
+			posns.clear();
 		}
-	}
+	});
 	colorize(regions, regions);
 }
 
