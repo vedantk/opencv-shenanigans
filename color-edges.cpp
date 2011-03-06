@@ -1,6 +1,6 @@
 #include "cv-common.hpp"
 
-struct regionState {
+struct regionState : NeighborState {
 	int to_visit;
 	points& posns;
 	Filter lambda;
@@ -24,20 +24,20 @@ struct regionState {
 };
 
 void findRegion(Mat& mat, u8 markAs, Filter filt, points& posns)
-/* Given points in posns, find their surrounding homogenous region.
- * The filter checks if new points should be included in the region. */
+/* Use region-growing to expand posns. The filter determines which
+ * pixels to include in the region. Each pixel is marked (markAs). */
 {
 	int visited = 0;
 	regionState state = regionState(posns, filt, markAs);
 	while (state.to_visit > visited) {
 		Vec2i cur = posns[visited];
 		int ci = cur[0], cj = cur[1];
-		applyToNeighbors<regionState>(mat, &state, ci, cj);
+		applyToNeighbors(mat, &state, ci, cj);
 		++visited;
 	}
 }
 
-struct borderState {
+struct borderState : NeighborState {
 	u8 shade;
 	bool isBorder;
 
@@ -59,7 +59,7 @@ inline bool isBorderPixel(Mat& mat, Vec2i posn)
 {
 	int ci = posn[0], cj = posn[1];
 	borderState state = borderState(mat.at<u8>(ci, cj));
-	applyToNeighbors<borderState>(mat, &state, ci, cj);
+	applyToNeighbors(mat, &state, ci, cj);
 	return state.isBorder;
 }
 
@@ -83,12 +83,13 @@ Point2i findCentroid(Mat& mat, points& posns)
 	return Point2i(xsum / posns.size(), ysum / posns.size());
 }
 
-int findRadius(Point2i centroid, points& posns)
+int findRadius(Point2i centroid, points& boundary)
+/* Averages the distances from the centroid to the region boundary. */
 {
 	double sumRadius = 0;
 	int cx = centroid.x, cy = centroid.y;
-	for (size_t k=0; k < posns.size(); ++k) {
-		sumRadius += dist(cx, posns[k][0], cy, posns[k][1]);
+	for (size_t k=0; k < boundary.size(); ++k) {
+		sumRadius += dist(cx, boundary[k][0], cy, boundary[k][1]);
 	}
 	return int(round(sumRadius / posns.size()));
 }
@@ -109,11 +110,6 @@ void regionLabel(Mat& edges, Mat& regions)
 			posns.push_back(Vec2i(i, j));
 			int color = randRange(160, 192);
 			findRegion(regions, color, shadeFilter, posns);
-			if (posns.size() > 50 && posns.size() < 100) {
-				Point2i centroid = findCentroid(regions, posns);
-				int radius = findRadius(centroid, posns);
-				circle(regions, centroid, radius, outline);
-			}
 			posns.clear();
 		}
 	});
