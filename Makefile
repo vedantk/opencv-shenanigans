@@ -1,5 +1,5 @@
 CXX = g++
-OPTS = -Wall -O3
+OPTS = -Wall -g
 LIBS = -lm -lopencv_highgui -lopencv_core
 CXXFLAGS = -I/usr/include/opencv $(LIBS) $(OPTS)
 

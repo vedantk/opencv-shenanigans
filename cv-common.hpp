@@ -8,7 +8,7 @@ using namespace cv;
 using namespace std;
 
 typedef unsigned char u8;
-typedef vector<Vec2i> points;
+typedef vector<Point2i> points;
 typedef bool (*Filter)(u8 shade);
 
 #define FOR_EACH_PIXEL(mat, xvar, yvar, block) \
@@ -48,16 +48,16 @@ public:
 	virtual bool apply(Mat& mat, int idx, int idy) = 0;
 };
 
-void applyToNeighbors(Mat& mat, NeighborState* state, int ci, int cj)
+void applyToNeighbors(Mat& mat, NeighborState* state, Point2i pt)
 /* Call state->apply on all of the neighbors of the point (ci, cj).
  * If the function evaluates to false, the loop is broken. */
 {
 	for (int dx=-1; dx < 2; ++dx) {
 		for (int dy=-1; dy < 2; ++dy) {
-			int idx = ci + dx, idy = cj + dy;
+			int idx = pt.x + dx, idy = pt.y + dy;
 			if (idx >= 0 && idx < mat.rows
 				&& idy >= 0 && idy < mat.cols
-				&& idx != ci && idy != cj)
+				&& idx != pt.x && idy != pt.y)
 			{
 				if (!state->apply(mat, idx, idy))
 					return;
