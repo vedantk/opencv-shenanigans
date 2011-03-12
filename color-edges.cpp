@@ -16,7 +16,7 @@ struct regionState : NeighborState {
 	{
 		if (lambda(mat.at<u8>(idx, idy))) {
 			mat.at<u8>(idx, idy) = markAs;
-			posns.push_back(Point2i(idx, idy));
+			posns.push_back(Point(idx, idy));
 			++to_visit;
 		}
 		return true;
@@ -30,7 +30,7 @@ void findRegion(Mat& mat, u8 markAs, Filter filt, points& posns)
 	int visited = 0;
 	regionState state = regionState(posns, filt, markAs);
 	while (state.to_visit > visited) {
-		Point2i cur = posns[visited];
+		Point cur = posns[visited];
 		applyToNeighbors(mat, &state, cur);
 		++visited;
 	}
@@ -49,28 +49,28 @@ struct borderState : NeighborState {
 		if (mat.at<u8>(idx, idy) != shade) {
 			isBorder = true;
 			return false;
-		}
-		return true;
+		} else return true;
 	}
 };
 
-inline bool isBorderPixel(Mat& mat, Point2i pt)
+inline bool isBorderPixel(Mat& mat, Point pt, borderState state)
 {
-	borderState state = borderState(mat.at<u8>(pt));
+	state.isBorder = false;
 	applyToNeighbors(mat, &state, pt);
 	return state.isBorder;
 }
 
 void findBorder(Mat& mat, points& posns, points& border)
 {
+	borderState state = borderState(mat.at<u8>(posns.front()));
 	for (size_t k=0; k < posns.size(); ++k) {
-		if (isBorderPixel(mat, posns[k])) {
+		if (isBorderPixel(mat, posns[k], state)) {
 			border.push_back(posns[k]);
 		}
 	}
 }
 
-Point2i findCentroid(Mat& mat, points& posns)
+Point findCentroid(points& posns)
 /* http://mathworld.wolfram.com/GeometricCentroid.html */
 {
 	int xsum = 0, ysum = 0;
@@ -78,18 +78,18 @@ Point2i findCentroid(Mat& mat, points& posns)
 		xsum += posns[k].x;
 		ysum += posns[k].y;
 	}
-	return Point2i(xsum / posns.size(), ysum / posns.size());
+	return Point(fdiv(xsum, posns.size()),
+				 fdiv(ysum, posns.size()));
 }
 
-int findRadius(Point2i centroid, points& border)
+int findRadius(Point centroid, points& border)
 /* Averages the distances from the centroid to the region border. */
 {
 	double sumRadius = 0;
-	int cx = centroid.x, cy = centroid.y;
 	for (size_t k=0; k < border.size(); ++k) {
-		sumRadius += dist(cx, border[k].x, cy, border[k].y);
+		sumRadius += dist(centroid, border[k]);
 	}
-	return int(round(sumRadius / border.size()));
+	return fdiv(sumRadius, border.size());
 }
 
 bool shadeFilter(u8 shade)
@@ -103,31 +103,29 @@ void regionLabel(Mat& edges, Mat& regions, vector<points>& areas)
 	regions = edges.clone();
 	FOR_EACH_PIXEL(regions, i, j, {
 		if (shadeFilter(regions.at<u8>(i, j))) {
-			points area;
-			area.push_back(Point2i(i, j));
+			areas.push_back(points());
+			points& area = areas.back();
+			area.push_back(Point(i, j));
 			int color = randRange(160, 192);
 			findRegion(regions, color, shadeFilter, area);
-			areas.push_back(area);
 		}
 	});
 }
 
 void processRegions(Mat& regions, vector<points>& areas)
 {
-	points border;
-	Scalar scale = Scalar(0, 0, 0, 0);
+	const Scalar scale = Scalar(0, 0, 0, 0);
 	for (size_t k=0; k < areas.size(); ++k) {
 		size_t sz = areas[k].size();
-		if (sz < 20 || sz > 40) continue;
-		Point2i pt = findCentroid(regions, areas[k]);
+		if (sz < 10 || sz > 50) continue;
+
+		points border;
+		Point pt = findCentroid(areas[k]);
 		findBorder(regions, areas[k], border);
-		int radius = findRadius(pt, border);
 		for (size_t i=0; i < border.size(); ++i) {
-			regions.at<u8>(border[i]) = 255;
+			int lhs = border[i].x, rhs = border[i].y;
+			regions.at<u8>(lhs, rhs) = 0;
 		}
-		circle(regions, pt, radius / 5, scale);
-		circle(regions, pt, radius, scale);
-		border.clear();
 	}
 }
 
@@ -146,7 +144,6 @@ int main(int argc, char** argv)
 	}
 
 	Mat frame, gray, edges, regions, colorized;
-	vector<points> areas;
 	while (true) {
 		cap >> frame;
 		cvtColor(frame, gray, CV_BGR2GRAY);
@@ -154,16 +151,16 @@ int main(int argc, char** argv)
 		Canny(gray, edges, 0, 50, 3, true);
 		colorize(gray, colorized);
 
+		vector<points> areas;
 		regionLabel(edges, regions, areas);
 		processRegions(regions, areas);
-		areas.clear();
 
 		imshow(windows[0], frame);
 		imshow(windows[1], gray);
 		imshow(windows[2], regions);
 		imshow(windows[3], colorized);
-		waitKey(0);
 		if (waitKey(10) >= 0) break;
+		// waitKey(0);
 	}
 	return 0;
 }

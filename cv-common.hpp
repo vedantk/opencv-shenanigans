@@ -8,7 +8,7 @@ using namespace cv;
 using namespace std;
 
 typedef unsigned char u8;
-typedef vector<Point2i> points;
+typedef vector<Point> points;
 typedef bool (*Filter)(u8 shade);
 
 #define FOR_EACH_PIXEL(mat, xvar, yvar, block) \
@@ -21,6 +21,7 @@ typedef bool (*Filter)(u8 shade);
 void matInfo(Mat& mat)
 {
 	cout
+		<< "@ " << mat << endl
 		<< "mat.depth() = " << mat.depth() << endl
 		<< "mat.channels() = " << mat.channels() << endl
 		<< "mat.dims = " << mat.dims << endl
@@ -48,7 +49,7 @@ public:
 	virtual bool apply(Mat& mat, int idx, int idy) = 0;
 };
 
-void applyToNeighbors(Mat& mat, NeighborState* state, Point2i pt)
+void applyToNeighbors(Mat& mat, NeighborState* state, Point pt)
 /* Call state->apply on all of the neighbors of the point (ci, cj).
  * If the function evaluates to false, the loop is broken. */
 {
@@ -71,12 +72,22 @@ inline int square(int n)
 	return n * n;
 }
 
-double dist(int x1, int y1, int x2, int y2)
+double dist(Point lhs, Point rhs)
 {
-	return sqrt(square(x2 - x1) + square(y2 - y1));
+	return sqrt(square(rhs.x - lhs.x) + square(rhs.y - lhs.y));
 }
 
 int randRange(int a, int b)
 {
 	return a + (abs(rand()) % (b - a));
+}
+
+inline int fdiv(int lhs, int rhs)
+{
+	return int(round(double(lhs) / double(rhs)));
+}
+
+void printPoint(Point pt)
+{
+	cout << "[Point] x = " << pt.x << ", " << "y = " << pt.y;
 }
