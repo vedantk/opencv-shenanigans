@@ -1,7 +1,4 @@
-#include <cv.h>
-#include <highgui.h>
-
-using namespace cv;
+#include "cv-common.hpp"
 
 const char* names[] = {"one", "two", "three", "four", "five"};
 

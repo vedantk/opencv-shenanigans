@@ -73,13 +73,12 @@ void findBorder(Mat& mat, points& posns, points& border)
 Point findCentroid(points& posns)
 /* http://mathworld.wolfram.com/GeometricCentroid.html */
 {
-	int xsum = 0, ysum = 0;
+	int xs = 0, ys = 0;
 	for (size_t k=0; k < posns.size(); ++k) {
-		xsum += posns[k].x;
-		ysum += posns[k].y;
+		xs += posns[k].x;
+		ys += posns[k].y;
 	}
-	return Point(fdiv(xsum, posns.size()),
-				 fdiv(ysum, posns.size()));
+	return Point(fdiv(xs, posns.size()), fdiv(ys, posns.size()));
 }
 
 int findRadius(Point centroid, points& border)
@@ -123,10 +122,23 @@ void processRegions(Mat& regions, vector<points>& areas)
 		Point pt = findCentroid(areas[k]);
 		findBorder(regions, areas[k], border);
 		for (size_t i=0; i < border.size(); ++i) {
-			int lhs = border[i].x, rhs = border[i].y;
-			regions.at<u8>(lhs, rhs) = 0;
+			regions.at<u8>(border[i]) = 0;
 		}
 	}
+}
+
+void colorize(Mat& mat, Mat& out)
+{
+	vector<Mat> planes;
+	for (int k=0; k < 3; ++k) {
+		planes.push_back(mat.clone());
+	}
+	FOR_EACH_PIXEL(mat, i, j, {
+		u8 cur = mat.at<u8>(i, j);
+		planes[0].at<u8>(i, j) = 0xFF - cur;
+		planes[1].at<u8>(i, j) = (cur * cur) % 0xFF;
+	});
+	merge(planes, out);
 }
 
 int main(int argc, char** argv)

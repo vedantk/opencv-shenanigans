@@ -1,5 +1,6 @@
-#include <cv.h>
-#include <highgui.h>
+#include <opencv.hpp>
+#include <highgui/highgui.hpp>
+
 using namespace cv;
 
 #include <cmath>
@@ -28,20 +29,6 @@ void matInfo(Mat& mat)
 		<< "mat.elemSize() = " << mat.elemSize()
 		<< endl;
 	cin.get();
-}
-
-void colorize(Mat& mat, Mat& out)
-{
-	vector<Mat> planes;
-	for (int k=0; k < 3; ++k) {
-		planes.push_back(mat.clone());
-	}
-	FOR_EACH_PIXEL(mat, i, j, {
-		u8 cur = mat.at<u8>(i, j);
-		planes[0].at<u8>(i, j) = 0xFF - cur;
-		planes[1].at<u8>(i, j) = (cur * cur) % 0xFF;
-	});
-	merge(planes, out);
 }
 
 class NeighborState {

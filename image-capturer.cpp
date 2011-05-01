@@ -1,9 +1,4 @@
-#include <cv.h>
-#include <highgui.h>
-using namespace cv;
-
-#include <iostream>
-using namespace std;
+#include "cv-common.hpp"
 
 int main(int argc, char** argv)
 {
