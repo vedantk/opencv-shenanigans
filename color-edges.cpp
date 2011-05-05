@@ -160,7 +160,7 @@ int main(int argc, char** argv)
 		cap >> frame;
 		cvtColor(frame, gray, CV_BGR2GRAY);
 		GaussianBlur(gray, gray, Size(3, 3), 5, 5);
-		Canny(gray, edges, 0, 50, 3, true);
+		Canny(gray, edges, 0, 50, 3, false);
 		colorize(gray, colorized);
 
 		vector<points> areas;
